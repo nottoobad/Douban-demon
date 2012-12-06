@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<!--
+ * Copyright (c) 2010 The Chromium Authors. All rights reserved.  Use of this
+ * source code is governed by a BSD-style license that can be found in the
+ * LICENSE file.
+-->
+<html>
+  <head>
+  <script language="javascript" src="../js/jquery.js"></script>
+  <script language="javascript" src="../js/oauth.js"></script>
+  <script language="javascript" src="../js/sha1.js"></script>
+
+    <script>
+  if (!localStorage.isInitialized) {
+	localStorage.showFloor = true;
+	localStorage.showLZBtn = true;
+	localStorage.enablePopup = true;
+	localStorage.newDoumail = true;
+	localStorage.newRemind = false;
+	localStorage.newReply = false;
+
+	localStorage.pagePerRequest = 5;
+  }
+
+	var consumer = {};
+		
+	consumer.douban = {
+		consumerKey   : "0a11b6c50686fa4e1e35244f1394eeea",
+		consumerSecret: "4dfff582d795391c",
+		serviceProvider: {
+			signatureMethod     : "HMAC-SHA1",
+			requestTokenURL     : "http://www.douban.com/service/auth/request_token",
+			userAuthorizationURL: "http://www.douban.com/service/auth/authorize", 
+			accessTokenURL      : "http://www.douban.com/service/auth/access_token"
+		}
+	};
+	consumer.sina = {
+		consumerKey   : "1060432814",
+		consumerSecret: "b4264dba2c4f69a5422fa75c1ab3d1ae",
+		serviceProvider: {
+			signatureMethod     : "HMAC-SHA1",
+			requestTokenURL     : "http://api.t.sina.com.cn/oauth/request_token",
+			userAuthorizationURL: "http://api.t.sina.com.cn/oauth/authorize", 
+			accessTokenURL      : "http://api.t.sina.com.cn/oauth/access_token"
+		}
+	}
+	consumer.qq = {
+		consumerKey   : "372939967a66450f9a5bcb06daccb29c",
+		consumerSecret: "7fdff9f3fb605cc845695b9732152ff2",
+		serviceProvider: {
+			signatureMethod     : "HMAC-SHA1",
+			requestTokenURL     : "https://open.t.qq.com/cgi-bin/request_token",
+			userAuthorizationURL: "https://open.t.qq.com/cgi-bin/authorize", 
+			accessTokenURL      : "https://open.t.qq.com/cgi-bin/access_token"
+		}
+	}
+	var chromeExtentionAddress = "chrome-extension://okhmhecohcmlbibjjopdelbcklbffhbh/html/options.html";
+
+	function authorizationTo(client){
+		var message = {
+			method: "get", 
+			action: consumer[client].serviceProvider.requestTokenURL
+		};
+		OAuth.completeRequest(message, consumer[client]);
+		var authHeader = OAuth.getAuthorizationHeader("", message.parameters);	
+		//alert(authHeader);
+		$.ajax({
+			url: consumer[client].serviceProvider.requestTokenURL,
+			type: "get",
+			beforeSend : function(xhr) {
+				xhr.setRequestHeader("Authorization", authHeader);
+			},
+			success: function(response){
+				var results = OAuth.decodeForm(response);				
+				consumer[client].token = OAuth.getParameter(results, "oauth_token");
+				consumer[client].tokenSecret = OAuth.getParameter(results, "oauth_token_secret");			
+				chrome.tabs.create({
+					url: consumer[client].serviceProvider.userAuthorizationURL + "?oauth_token=" + OAuth.getParameter(results, "oauth_token")// + "&oauth_callback=" + chromeExtentionAddress + "?client=" + client
+				}, function(tab){
+					console.log(tab);
+				});
+			}
+		});
+	}
+
+	function authorizationToQQ(){
+		var message = {
+			method: "get", 
+			action: consumer["qq"].serviceProvider.requestTokenURL
+		};
+		OAuth.setParameter(message, "oauth_callback", chromeExtentionAddress + "?client=qq");
+		OAuth.completeRequest(message, consumer["qq"]);
+		
+		var authHeader = OAuth.getAuthorizationParameters(message.parameters);	
+		
+
+		$.ajax({
+			url: consumer["qq"].serviceProvider.requestTokenURL + authHeader,
+			type: "get",	
+			success: function(response){				
+				var results = OAuth.decodeForm(response);					
+				consumer["qq"].token = OAuth.getParameter(results, "oauth_token");
+				consumer["qq"].tokenSecret = OAuth.getParameter(results, "oauth_token_secret");			
+				chrome.tabs.create({
+					url: consumer["qq"].serviceProvider.userAuthorizationURL + "?oauth_token=" + OAuth.getParameter(results, "oauth_token")
+				});
+			},
+			error : function(response, error){
+				alert(response.responseText);
+			}
+		});
+	}
+	
+	function authorizationVerifyToQQ(verify){
+		var message = {
+				method: "get", 
+				action: consumer["qq"].serviceProvider.accessTokenURL
+			};
+		OAuth.setParameter(message, "oauth_verifier", verify);
+		OAuth.completeRequest(message, consumer["qq"]);
+		
+		var authHeader = OAuth.getAuthorizationParameters( message.parameters);				
+		$.ajax({
+			url: consumer["qq"].serviceProvider.accessTokenURL + authHeader,
+			type: "get",			
+			success: function(response){				
+				var results = OAuth.decodeForm(response);
+				localStorage.qq_token = OAuth.getParameter(results, "oauth_token");
+				localStorage.qq_token_secret = OAuth.getParameter(results, "oauth_token_secret");		
+			},
+			error : function(response, error){
+				alert(response.responseText);
+			}
+		});
+	}
+
+	function testQQ(){
+		if(localStorage.qq_token && localStorage.qq_token_secret){
+			consumer["qq"].token = localStorage.qq_token;
+			consumer["qq"].tokenSecret = localStorage.qq_token_secret;	
+			
+			var message = {
+				method: "post", 
+				action: "http://open.t.qq.com/api/t/add"
+			};
+			OAuth.completeRequest(message, consumer["qq"]);
+			var authHeader = OAuth.getAuthorizationParameters( message.parameters);	
+			console.log(authHeader);
+			$.ajax({
+				url: "http://open.t.qq.com/api/t/add" + authHeader,
+				type: "post",			
+				data: "format=json&content=hello&clientip=127.0.0.1",
+				success: function(response){
+					console.log(response);				
+				},
+				error : function(response, error){
+					console.log(response);
+				}
+			});
+		}
+	}
+
+	function testSina(){
+	}
+
+	function testClient(client, url, method, user_params, dataType){
+		if(localStorage[client + "_token"] && localStorage[client+"_token_secret"]) {
+			var paramsStr = "";
+			
+			if(user_params != null){
+				for(var i=0; i<user_params.length; i++){
+					paramsStr += user_params[i][0] + "=" + encodeURIComponent(user_params[i][1]);
+					if(i!= user_params.length-1){
+						paramsStr += "&";
+					}
+				}
+			}
+			
+			console.log("~~~~~" + paramsStr);
+
+
+			consumer[client].token = localStorage[client + "_token"];
+			consumer[client].tokenSecret = localStorage[client+"_token_secret"];	
+			
+			var message = {
+				method: method, 
+				action: url,
+				parameters: user_params
+			};
+			OAuth.setParameter(message, "oauth_token", consumer[client].token);			
+			OAuth.completeRequest(message, consumer[client]);
+			console.log(OAuth.SignatureMethod.getBaseString(message));
+
+			var authHeader = OAuth.getAuthorizationHeader("", message.parameters);
+			
+			$.ajax({
+				url: url,
+				type: method,
+				data: paramsStr,				
+				beforeSend : function(xhr) {
+					xhr.setRequestHeader("Authorization", authHeader);
+					
+					if(method.toUpperCase() == "POST" && dataType == "xml") {
+						xhr.setRequestHeader('content-type', 'application/xml');
+					}
+				},
+				success: function(response){
+					console.log(response);				
+				},
+				error : function(response, error){
+					console.log(response);
+				}
+			});
+		}
+	}
+	
+	function testDoubanPost(){
+		client = "douban";
+		method = "post";
+		url = "http://api.douban.com/miniblog/saying";
+		consumer[client].token = localStorage[client + "_token"];
+		consumer[client].tokenSecret = localStorage[client+"_token_secret"];	
+			
+			var message = {
+				method: method, 
+				action: url				
+			};
+			OAuth.setParameter(message, "oauth_token", consumer[client].token);			
+			OAuth.completeRequest(message, consumer[client]);			
+
+			var authHeader = OAuth.getAuthorizationHeader(url, message.parameters);
+			console.log(authHeader);
+			$.ajax({
+				url: url,
+				type: method,
+				data: "<entry><content>this is a我test</content></entry>",
+				processData: false,
+                contentType: 'application/atom+xml',
+				beforeSend : function(xhr) {
+					xhr.setRequestHeader("Authorization", authHeader);					
+					//xhr.setRequestHeader('content-type', 'application/atom+xml');				
+				},
+				success: function(response){
+					console.log(response);				
+				},
+				error : function(response, error){
+					console.log(response);
+				}
+			});
+	}
+
+	function authorizationVerify(client, verify){		
+		var message = {
+				method: "post", 
+				action: consumer[client].serviceProvider.accessTokenURL
+			};
+		OAuth.setParameter(message, "oauth_verifier", verify);
+		OAuth.completeRequest(message, consumer[client]);
+		
+		var authHeader = OAuth.getAuthorizationHeader("", message.parameters);				
+		$.ajax({
+			url: consumer[client].serviceProvider.accessTokenURL,
+			type: "post",
+			beforeSend : function(xhr) {
+				xhr.setRequestHeader("Authorization", authHeader);
+			},
+			success: function(response){
+				alert("授权成功！现在可以使用豆瓣“我说”同步到新浪微博功能（无需登录新浪微博）。");
+				var results = OAuth.decodeForm(response);
+				localStorage.sina_token = OAuth.getParameter(results, "oauth_token");
+				localStorage.sina_token_secret = OAuth.getParameter(results, "oauth_token_secret");		
+			}
+		});
+			
+	}
+	function show(title, content) {		
+		var notification = webkitNotifications.createNotification(
+			'../image/demon-48.gif',                      // The image.
+			title, 
+			content      // The body.
+		);
+		notification.show();
+		setTimeout(function(){
+			notification.cancel();
+		}, 10000);
+	}
+
+	var date = new Date();
+	 
+	if(date.getYear() == 111){
+		 if(date.getMonth()==1 && date.getDate() >= 3 && localStorage.SpringFestival){
+			delete( localStorage.SpringFestival )
+			sayHappyNewYear();
+		 }else if((date.getMonth()==1 && date.getDate() < 3) || date.getMonth()==0){
+			localStorage.SpringFestival = true;
+		 }
+	}
+	
+	function sayHappyNewYear(){
+		var notification = webkitNotifications.createHTMLNotification("happy_new_year.html");		
+		notification.show();
+	}
+	function showHTMLNotification(html) {
+		
+		var notification = webkitNotifications.createHTMLNotification(html);		
+		notification.show();
+		setTimeout(function(){
+			notification.cancel();
+		}, 10000);
+	}
+
+	function openURL(url){
+		chrome.tabs.create({url: url});
+	}
+
+  
+	function onRequest(request, sender, sendResponse) {			
+		if(request.eventName=="normal"){
+			var sync = localStorage.sina_token!=undefined;
+			sendResponse({
+				isInitialized : localStorage.isInitialized, 
+				pagePerRequest: localStorage.pagePerRequest,
+				showFloor: localStorage.showFloor,
+				showLZBtn: localStorage.showLZBtn,
+				syncToSina: sync
+			});
+		}else if(request.eventName == "synchToSina"){		
+			
+			var content = request.eventParameter;
+			testClient("sina", "http://api.t.sina.com.cn/statuses/update.json", "POST", [["status",content]]);
+			/*
+			$.post("http://api.t.sina.com.cn/statuses/update.json", {source:"1060432814", status: content});
+			$.get("http://t.sina.com.cn/", function(dat){
+				$.post("http://t.sina.com.cn/mblog/publish.php?rnd="+Math.random(),
+					{content: "test~~~~~~~~~", pic:"",retcode:"",styleid:"1"},
+					function(da){
+						alert(da);
+					}
+				);
+			});
+			*/
+			
+			
+		}else if(request.eventName=="authToDouban"){
+			var message = {
+				method: "get", 
+				action: consumer["douban"].serviceProvider.accessTokenURL
+			};
+			OAuth.completeRequest(message, consumer["douban"]);
+			var authHeader = OAuth.getAuthorizationHeader("", message.parameters);				
+			$.ajax({
+				url: consumer["douban"].serviceProvider.accessTokenURL,
+				type: "get",
+				beforeSend : function(xhr) {
+					xhr.setRequestHeader("Authorization", authHeader);
+				},
+				success: function(response){
+					var results = OAuth.decodeForm(response);
+					localStorage.douban_token = OAuth.getParameter(results, "oauth_token");
+					localStorage.douban_token_secret = OAuth.getParameter(results, "oauth_token_secret");		
+				}
+			});
+		}else if(request.eventName == "authToSina"){
+			
+		}else{
+			alert("UNEXPECT MESSAGE!");
+		}
+      };
+
+      // Listen for the content script to send a message to the background page.
+	chrome.extension.onRequest.addListener(onRequest);
+	
+	if (webkitNotifications) { 
+		setInterval(function() {
+			if(JSON.parse(localStorage.enablePopup)){
+				$.get("http://www.douban.com/", 
+					function(dat){
+						var doumail = $(".top-nav-info a:first",dat);
+						
+						if(JSON.parse(localStorage.newDoumail) && /\(\d+\)/.test(doumail.text())){
+							/*
+							$(".olt tr", dat).each(function(){
+								if($(this).find("td:nth-child(2)").text() == ">"){
+									from += $(this).find("td:first").text() + "  ";
+								}
+							});
+							
+							*/
+//							var doumail_text = doumail.text();
+//							var doumail_count = parseInt(doumail_text.substring("豆邮(".length, doumail_text.indexOf(")") + 1));
+//							if(doumail_count != NaN && doumail_count > 1)
+//							{
+//								show("你有新" + doumail.text() + "。", "");
+//							}
+//							else
+//							{
+//								showHTMLNotification("new_doumail.html");
+//							}
+							
+							showHTMLNotification("new_doumail.html");
+							
+						}
+						if(JSON.parse(localStorage.newRemind) && $(".infobox", dat).length != 0){
+							if($(".infobox", dat).text().match(/.*提醒.*/)){
+								showHTMLNotification("new_remind.html");
+							}
+						}
+						if(JSON.parse(localStorage.newReply) && $(".reply_notify" ,dat).length != 0){
+							show($(".reply_notify" ,dat).text(), "");
+						}
+					}
+				);
+			}
+		}, 30000);
+	}
+function markDoumailAsRead(){
+	$.get("http://www.douban.com/doumail/", function(dat){
+		
+		if($(".m",dat).length > 0){			
+			var url = $(".m", dat).parent().find(":nth-child(3) a").attr("href");	
+//			alert(url);
+			$.get(url, function(detail){
+				var thumbnail = $(".doumail-sender a img", detail).attr("src");
+				var username = $(".doumail-sender a img", detail).attr("alt");				
+				var userhref = $(".doumail-sender a", detail).attr("href");
+				if(username == "douban"){
+					username = "豆瓣系统邮件";
+					
+//				alert(thumbnail);
+//				alert(username);
+//				alert(userhref);					
+				}
+
+				var title = $(".m", detail).text();
+//				alert(title);
+				var ck = $(".top-nav-info a:last", detail)[0].href.split("=")[1];
+//				alert(ck);
+				var content = $(".article", detail).text().split(title)[1];
+//				alert(content);
+				var notification = webkitNotifications.createHTMLNotification("doumail_detail.html");		
+				notification.show();
+				setTimeout(function(){
+					chrome.extension.getViews({type:"notification"}).forEach(function(win) {					  
+						if(win.showDoubailDetail){
+							win.showDoubailDetail(username,userhref, thumbnail, title, content, url, ck);
+						}
+					});
+				}, 200);
+			});
+		}
+	});
+}
+
+function sendDoumail(mailTitle, content, to, ck){
+//	alert(title);
+//	alert(content);
+//	alert(to);
+//	alert(ck);
+
+	console.log(content);
+
+
+	$.post(
+		"http://www.douban.com/doumail/write",
+		{
+			ck: ck, 
+			to: to, 
+			m_subject:"Re: " + mailTitle, 
+			m_text:content, 
+			m_submit:"好了，寄出去"
+		}
+	)
+
+}
+
+function noRemind(){
+
+}
+
+var api_key = "0a11b6c50686fa4e1e35244f1394eeea";
+var api_key_secret = "4dfff582d795391c";
+var access_token = "04c1bed0a2713c350e453c71e753b49f";
+var access_token_secret = "68ca071461ae06aa";
+
+var signature_method = "HMAC-SHA1";
+
+var request_token_uri = "http://www.douban.com/service/auth/request_token";
+var access_token_uri = "http://www.douban.com/service/auth/access_token";
+var authorization_uri = "http://www.douban.com/service/auth/authorize?oauth_token=";
+var miniblog_uri = "http://api.douban.com/miniblog/saying";
+
+// 4. 访问受限资源，该步骤使用API Key、API Key Secret、Access Token和Access Token Secret签名
+function sendMiniblog(){
+		var message = {
+		    method: "POST",
+		    action: miniblog_uri,
+		    parameters: {
+		        oauth_consumer_key: api_key,
+		        oauth_token: access_token,
+						oauth_signature_method: signature_method,
+		        oauth_signature: "",
+		        oauth_timestamp: "",
+		        oauth_nonce: ""
+			  }
+	  }
+	  // 签名
+	  OAuth.setTimestampAndNonce(message);
+	  OAuth.SignatureMethod.sign(message, {
+	      consumerSecret: api_key_secret,
+	      tokenSecret: access_token_secret,
+	  });
+
+		//构造OAuth头部
+		var oauth_header = "OAuth realm=\"\", oauth_consumer_key=";
+		oauth_header += message.parameters.oauth_consumer_key + ', oauth_nonce=';
+		oauth_header += message.parameters.oauth_nonce + ', oauth_timestamp=';
+		oauth_header += message.parameters.oauth_timestamp + ', oauth_signature_method=HMAC-SHA1, oauth_signature=';
+		oauth_header += message.parameters.oauth_signature + ', oauth_token=';
+		oauth_header += message.parameters.oauth_token;
+	
+		//构造请求
+	  var request_body = "<entry xmlns:ns0=\"http://www.w3.org/2005/Atom\" xmlns:db=\"http://www.douban.com/xmlns/\">";
+		request_body += "<content>Javascript OAuth认证成功</content>";
+		request_body += "</entry>";
+		
+		$.ajax({
+	      url: message.action,
+	      method: message.method,
+	      //设置Http Request Headers
+		  beforeSend : function(xhr) {
+				xhr.setRequestHeader("Authorization", oauth_header);					
+				xhr.setRequestHeader('content-type', 'application/atom+xml');				
+			},			
+	      data: request_body,
+	      success: function(){
+				console.log(responseText);
+	      },
+			error : function(response, error){
+				console.log(response);
+		}
+	  });
+}
+
+    </script>
+  </head>
+</html>

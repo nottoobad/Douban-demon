@@ -1,0 +1,28 @@
+{
+  "name" : "豆瓣精灵",
+  "version" : "1.7.1",
+  "update_url": "http://douban-demon.googlecode.com/svn/updates.xml",
+  "description" : "【豆瓣精灵】有什么问题或意见或建议，请联系russell.liuyi@gmail.com，或豆瓣ID：http://www.douban.com/people/3811658/",
+  "options_page": "html/options.html",
+  "permissions": ["tabs", "notifications","http://*/*", "https://*/*"],
+  "background_page" : "html/background.html",
+  "page_action" :
+  {
+    "default_icon" : "image/demon-19.gif",
+    "default_title" : ""
+  },
+  "content_scripts" : [
+    {
+      "matches" : [
+        "http://*.douban.com/*",
+	"http://api.t.sina.com.cn/oauth/*"
+      ],
+     "js": ["js/jquery.js","js/jquery-ui.js", "js/contentscript.js"],
+      "run_at" : "document_idle",
+      "all_frames" : false
+    }
+  ],
+  "icons" : {
+    "48" : "image/demon-48.gif"
+  }
+}

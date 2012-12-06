@@ -1,0 +1,221 @@
+<!--
+  An option page for configuring notifications.
+
+  Copyright 2010 the Chromium Authors
+
+  Use of this source code is governed by a BSD-style license that can be found
+  in the "LICENSE" file.
+
+  Brian Kennish <bkennish@chromium.org>
+-->
+<title>精灵设置</title>
+<style>
+  /* Clone the look and feel of "chrome://" pages. */
+  body {
+    margin: 10px;
+    font: 84% Arial, sans-serif
+  }
+
+  h1 { font-size: 156% }
+
+  h1 img {
+    margin: 1px 5px 0 1px;
+    vertical-align: middle
+  }
+
+  h2 {
+    border-top: 1px solid #9cc2ef;
+    background-color: #ebeff9;
+    padding: 3px 5px;
+    font-size: 100%
+  }
+</style>
+<script>
+  /*
+    Grays out or [whatever the opposite of graying out is called] the option
+    field.
+  */
+    onload = function() {
+    // Initialize the option controls.		
+		options.showFloor.checked = JSON.parse(localStorage.showFloor);
+		options.showLZBtn.checked = JSON.parse(localStorage.showLZBtn);
+		options.enablePopup.checked = JSON.parse(localStorage.enablePopup);
+
+		options.newDoumail.checked = JSON.parse(localStorage.newDoumail);
+		options.newRemind.checked = JSON.parse(localStorage.newRemind);
+		options.newReply.checked = JSON.parse(localStorage.newReply);
+		
+		for(var i=0; i<options.pagePerRequest.options.length; i++){
+			if(options.pagePerRequest.options[i].value == localStorage.pagePerRequest){
+				options.pagePerRequest.options[i].selected = true;
+			}
+		}
+
+		displayOrHide(JSON.parse(localStorage.enablePopup));
+		/*if(localStorage.savedThread){
+			for(var i=0; i<localStorage.savedThread.length; i++){
+				var opt = options.savedThread.Add(new Option(localStorage.savedThread[i].title, localStorage.savedThread[i].title));
+			}
+		}*/
+    // Set the display activation and frequency.
+		var paramArray = {};
+		var parameters = location.href.split("?");
+		if(parameters.length > 1){			
+			var params = parameters[1].split("&");
+			for(var i=0; i<params.length; i++){				
+				var param = params[i].split("=");
+				paramArray[param[0]] = param[1];			
+			}
+			
+			if(paramArray.oauth_verifier){
+				options[paramArray.client + "_verify_code"].value = paramArray.oauth_verifier;
+			}
+
+		}
+		
+  };
+
+  function save(){
+	localStorage.showFloor = options.showFloor.checked;    
+	localStorage.showLZBtn = options.showLZBtn.checked;
+	localStorage.enablePopup = options.enablePopup.checked;
+
+	localStorage.newDoumail = options.newDoumail.checked;
+	localStorage.newRemind = options.newRemind.checked;
+	localStorage.newReply = options.newReply.checked;
+
+	localStorage.pagePerRequest = options.pagePerRequest.value;
+	localStorage.isInitialized = true;
+	alert("保存成功");
+  }
+
+  function displayOrHide(b){	
+	if(b){
+		document.getElementById("hideDiv").style.display = "block";
+	}else{
+		document.getElementById("hideDiv").style.display = "none";
+	}
+  }
+
+  function authorizationVerify(client, verify){
+	verify = verify.replace(/(^\s*)|(\s*$)/g,""); 
+	if(client == "qq"){
+		chrome.extension.getBackgroundPage().authorizationVerifyToQQ(verify);
+	}else{
+		chrome.extension.getBackgroundPage().authorizationVerify(client, verify);
+	}
+  }
+  function authorizationTo(client){
+	if(client == "qq"){		
+		chrome.extension.getBackgroundPage().authorizationToQQ();
+	}else{
+		chrome.extension.getBackgroundPage().authorizationTo(client);
+	}
+  }
+
+  function test(){
+	
+		var param = "<entry><content>this is a test</content></entry>";
+		params = [["entry",param]]
+	//console.log(param);
+	//chrome.extension.getBackgroundPage().testDouban("douban", "http://api.douban.com/miniblog/524777529", "delete", "");
+	//chrome.extension.getBackgroundPage().testDouban("sina", "http://api.t.sina.com.cn/statuses/update.json?status=11111111122223333", "post", "");
+	chrome.extension.getBackgroundPage().testClient("douban", "http://api.douban.com/miniblog/saying", "post", params,"xml");
+  }
+</script>
+<h1>
+  <img src="../image/demon-48.gif">
+  豆瓣精灵 设置
+</h1>
+<h2>选项</h2>
+<form id="options">
+
+<div style="padding-left:50px; border:1px solid #AAA">
+  <p><input type="checkbox" name="showFloor" checked>显示贴子楼层号及快速“引用”回复功能</p>
+  
+	<p> <input type="checkbox" name="showLZBtn" checked>显示“只看楼主”按钮</p>
+ 
+  <p><input type="checkbox" name="enablePopup" onchange="displayOrHide(this.value)" checked>开启新豆邮、新提醒消息窗口提示  
+  <span id="hideDiv" style="padding-left:5px;display:none" >
+	<input type="checkbox" name="newDoumail" checked />新豆邮  
+	<input type="checkbox" name="newRemind" checked />新提醒 
+	<input type="checkbox" name="newReply" >新回复 
+  </span>
+  </p>
+  <p>
+  首页“只看：友邻推荐/友邻说”，每次读取：
+	<select name="pagePerRequest">
+		<option value="1"> 1页 </option>
+		<option value="5" selected> 5页 </option>
+		<option value="10"> 10页 </option>
+	</select>
+	<br/><font size='1' color="#AAA">--说明：比如当设置每次读取5页后，在豆瓣首页第一页点击时“只看友邻推荐”，会读取1-5页所有友邻推荐并列到页面上；在豆瓣首页第二页点击时，会读取第6-10页的友邻推荐，依此类推。</font>
+  </p>
+
+  <p>
+	<input type="button" value="授权至新浪微博" onclick="authorizationTo('sina')" /><br><font size='1' color="#AAA">--在打开的新浪微博授权页面授权以后，将页面提供的授权码复制到右边的文本框，然后点击完成授权即可。</font><input type='text' name='sina_verify_code'/><input type="button" value="完成授权" onclick="authorizationVerify('sina', sina_verify_code.value)" />
+	<!--<br><input type="button" value="授权至腾迅微博" onclick="authorizationTo('qq')" /><input type='text' name='qq_verify_code'/><input type="button" value="完成授权" onclick="authorizationVerify('qq', qq_verify_code.value)" /><input type='button' value='测试' onclick='test()' />
+	
+	<br><input type="button" value="授权至豆瓣" onclick="authorizationTo('douban')" />-->
+  </p>
+  <input type="button" value="保存设置" onclick="save()">
+  </div>
+
+  <div style="padding-left:50px;margin-top:10px; border:1px solid #ccc">  
+	<p>【2011.1.13】【豆瓣精灵1.7.0版】 更新内容：</p>
+	<ul>
+		<li>弹出的新豆邮提醒，提供直接在提示框快捷回复的功能。并同时将新豆邮标记为已读。</li>	
+		<li>增加“我备注的豆友”，在一个列表里把所有备注过的豆友列出来。并可以给备注过的豆友群发留言版春节祝福。</li>
+		<li>批量下载图片的功能，现在在电影剧照中也可以使用。</li>
+		<li>自动检测有无授权新浪微博，如果没有授权，则不显示“同步到新浪微博”的选项框</li>	
+	</ul>
+
+
+	<p>【2010.12.27】【豆瓣精灵1.6.1版】 更新内容：</p>
+	<ul>
+		<li>新浪微博同步功能，现在采用OAuth授权机制，授权后不需要登录新浪微博，也可以将豆瓣“我说”的消息同步到新浪微博上。</li>
+		<li>小组回复的引用功能，现在可以同时在“小组/相册/我说/阿尔法城/线上活动”等地方均可使用。并且加上了“@”功能，点击按钮即可</li>
+		<li>增加“小组/相册/我说/阿尔法城”的只看某人回复的功能。点击成员回复右下方的Only链接，即可隐藏除该成员外的其它回复。再次点击时复原。</li>
+		<li>取得相册所有图片的功能，现在采用文本框的形式来存放链接，并且一次只读取10页的内容以防止照片过多而造成很卡的现象（如果要读取后10页的，请先将相册地址跳转到第10页，然后再点击一次链接）</li>
+		<li>取得相册所有图片的功能，现在在“小站相册/个人相册/线上活动相册”均可以使用。</li>
+	</ul>
+
+
+	<p>【2010.12.13】【豆瓣精灵1.5.5版】 更新内容：</p>
+	<ul>
+		<li>首页“只看友邻推荐/友邻说”功能，现在可以一次访问5-10页的好友推荐。</li>
+		<li>增加“我说”与新浪微博发言的同步功能。请自己保证新浪微博处于登录状态，否则无效。</li>
+	</ul>
+
+
+	<p>【2010.12.12】【豆瓣精灵1.5.4版】 更新内容：</p>
+	<ul>
+		<li>修正当备注好友时，如果同时打开多个豆友页面然后一次性改名字，会导致之前的修改被覆盖的BUG</li>
+	</ul>
+
+
+	<p>【2010.12.12】【豆瓣精灵1.5.3版】 更新内容：</p>
+	<ul>
+		<li>增加豆瓣首页“只看友邻推荐/友邻说”的功能。</li>
+		<li>修正批量上传照片时，上传完毕后页面不自动跳转的BUG</li>
+	</ul>
+
+
+	 <p>【2010.12.11】【豆瓣精灵1.5.2版】 更新内容：</p>
+	<ul>
+		<li>增加我的电影/书籍/音乐备份功能。分别在<a href="http://movie.douban.com/mine" target="_blank">我看</a>, <a href="http://music.douban.com/mine" target="_blank">我听</a>, <a href="http://book.douban.com/mine" target="_blank">我读</a>的页面里有对应的"备份成文本"选项，点击即可看到结果</li>
+		<li>增加豆友备注功能，非关注/被关注也可以备注。在豆友主页的“更多(发豆邮的边上)——备注此人”按钮上点击，即可出来备注选项。</li>
+		<li>增加小组分类功能。在<a href="http://www.douban.com/group/mine/" target="_blank">全部小组</a>页面可以新增/修改/删除小组分类信息。</li>
+		<li>点提示窗口的新提醒时，跳转到“我的提醒”页面</li>
+		
+	</ul>
+
+	<p>【2010.12.08】【豆瓣精灵1.3版】 更新内容：</p>
+	<ul>
+		<li>桌面窗口提示10秒钟后自动关闭；</li>
+		<li>点击提示窗口的链接可以在chrome里打开“我的豆邮”</li>
+		<li>实现插件自动更新功能。</li>
+	</ul>
+
+  </div>
+</form>
