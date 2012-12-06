@@ -39,7 +39,7 @@ Douban-demon 豆瓣精灵
 
 【我的电影/书籍/音乐备份功能】分别在我看, 我听, 我读的页面里有对应的"备份文本"选项，点击即可看到结果.(其它豆友的看/听/读收藏亦可以导出！)
 
-
+[下载豆瓣精灵]() / [报告BUG](https://github.com/nottoobad/Douban-demon/issues) / [提出建议](https://github.com/nottoobad/Douban-demon/pulls)
 
 ##版本更新
 ###1.8.0 `2012-12-06`
